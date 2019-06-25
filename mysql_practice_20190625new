@@ -1,0 +1,29 @@
+1. 計算賣出金額(未考慮折扣)最高的前十個城市：
+
+MariaDB [northwind]> select c.city, sum(unitprice*quantity) as total  from `order details` as a join orders as b on a.orderid=b.orderid join customers as c on b.customerid=c.customerid group by 1 order by total desc limit 10; 
++----------------+-------------+
+| city           | total       |
++----------------+-------------+
+| Cunewalde      | 117483.3900 |
+| Boise          | 115673.3900 |
+| Graz           | 113236.6800 |
+| Cork           |  57317.3900 |
+| London         |  54470.2100 |
+| Rio de Janeiro |  53999.1800 |
+| Albuquerque    |  52245.9000 |
+| Sao Paulo      |  45786.3700 |
+| Bracke         |  32555.5500 |
+| Montreal       |  32203.9000 |
++----------------+-------------+
+
+2. 計算賣出金額(未考慮折扣)最高的前五名員工：
+select c.lastname, sum(unitprice*quantity) as total  from `order details` as a join orders as b on a.orderid=b.orderid join employees as c on b.employeeid=c.employeeid group by 1 order by total desc limit 5; 
++-----------+-------------+
+| lastname  | total       |
++-----------+-------------+
+| Peacock   | 250187.4500 |
+| Leverling | 213051.3000 |
+| Davolio   | 202143.7100 |
+| Fuller    | 177749.2600 |
+| King      | 141295.9900 |
++-----------+-------------+
