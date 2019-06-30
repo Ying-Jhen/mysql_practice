@@ -1,0 +1,227 @@
+0.每個辦公室的業績狀況表 (考慮order.status=shipped)
+
+SELECT a.officecode,a.city as office_city, sum(e.price) from offices as a, employees as b, customers as c, orders as d, 
+(SELECT ordernumber, sum(quantityOrdered*priceEach) as price from orderdetails group by 1) as e
+where a.officeCode=b.officeCode and b.employeeNumber=c.salesRepEmployeeNumber and c.customerNumber=d.customerNumber and d.orderNumber=e.ordernumber
+and d.status='shipped'
+group by 1,2
+order by 3 desc;
+
++------------+---------------+--------------+
+| officecode | office_city   | sum(e.price) |
++------------+---------------+--------------+
+| 4          | Paris         |   2812295.95 |
+| 1          | San Francisco |   1329614.32 |
+| 7          | London        |   1324325.90 |
+| 3          | NYC           |   1072619.47 |
+| 6          | Sydney        |   1033246.60 |
+| 2          | Boston        |    835882.33 |
+| 5          | Tokyo         |    457110.07 |
++------------+---------------+--------------+
+7 rows in set (0.004 sec)
+
+
+1. 業務業績排行榜, procedure (需要加上時間區間orderdate,考慮order.status=shipped)
+=>目標輸入起始時間與結束時間，顯示業務id與此期間內的業績金額(money)，並且依業績金額(money)排序
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `ex1`(IN `start_date` DATE, IN `end_date` DATE)
+    NO SQL
+BEGIN
+	SELECT b.employeeNumber ,concat(b.firstName,"-",b.lastName) as name ,sum(e.price) as money  from  employees as b, customers as c, orders as d, 
+(SELECT ordernumber, sum(quantityOrdered*priceEach) as price from orderdetails group by 1) as e
+where  b.employeeNumber=c.salesRepEmployeeNumber and c.customerNumber=d.customerNumber and d.orderNumber=e.ordernumber
+and d.status='shipped' and d.orderDate between start_date and end_date group by 1,2 order by money desc;
+end$$
+DELIMITER ;
+
+
+call ex1('2003-02-01','2003-05-01');
++----------------+-----------------+-----------+
+| employeeNumber | name            | money     |
++----------------+-----------------+-----------+
+|           1401 | Pamela-Castillo | 143564.91 |
+|           1621 | Mami-Nishi      |  95381.37 |
+|           1501 | Larry-Bott      |  48425.69 |
+|           1323 | George-Vanauf   |  48125.76 |
+|           1611 | Andy-Fixter     |  45864.03 |
+|           1337 | Loui-Bondur     |  33383.14 |
+|           1165 | Leslie-Jennings |  27582.15 |
+|           1286 | Foon Yue-Tseng  |  21665.98 |
+|           1504 | Barry-Jones     |   7674.94 |
+|           1702 | Martin-Gerard   |   3101.40 |
++----------------+-----------------+-----------+
+
+
+2. 熱銷商品排行榜, procedure (需要加上時間區間orderdate,考慮 status=shipped)
+=>目標輸入起始時間與結束時間，顯示商品id、商品名稱與此期間內的賣出數量(total_number)、賣出金額(total_money)，並且依賣出數量(total_number)排序
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `ex2`(IN `start_date` DATE, IN `end_date` DATE)
+    NO SQL
+BEGIN
+	SELECT c.productCode,c.productName,sum(e.number) as total_number  ,sum(e.price) as total_money  from  products as c, orders as d, 
+(SELECT orderNumber,productCode,sum(quantityOrdered) as number, sum(quantityOrdered*priceEach) as price from orderdetails group by 1,2) as e
+where  c.productCode=e.productcode and d.orderNumber=e.ordernumber
+and d.status='shipped' and d.orderDate between start_date and end_date  group by 1,2 order by 3 desc;
+end$$
+DELIMITER ;
+
+
+call ex2('2003-02-01','2003-05-01');
++-------------+---------------------------------------------+--------------+-------------+
+| productCode | productName                                 | total_number | total_money |
++-------------+---------------------------------------------+--------------+-------------+
+| S10_4757    | 1972 Alfa Romeo GTA                         |           96 |    11584.48 |
+| S18_3232    | 1992 Ferrari 360 Spider red                 |           94 |    15528.34 |
+| S24_2841    | 1900s Vintage Bi-Plane                      |           90 |     5863.13 |
+| S50_1341    | 1930 Buick Marquette Phaeton                |           88 |     3426.96 |
+| S700_3167   | F/A 18 Hornet 1/72                          |           87 |     6440.00 |
+| S24_3816    | 1940 Ford Delivery Sedan                    |           85 |     6649.80 |
+| S24_2011    | 18th century schooner                       |           84 |     9959.91 |
+| S18_1662    | 1980s Black Hawk Helicopter                 |           79 |    11334.78 |
+| S24_3151    | 1912 Ford Model T Delivery Wagon            |           79 |     5772.54 |
+| S700_1691   | American Airlines: B767-300                 |           78 |     7124.52 |
+| S24_3949    | Corsair F4U ( Bird Cage)                    |           78 |     4536.80 |
+| S72_1253    | Boeing X-32A JSF                            |           76 |     3223.76 |
+| S72_3212    | Pont Yacht                                  |           75 |     3740.25 |
+| S18_2625    | 1936 Harley Davidson El Knucklehead         |           75 |     4175.14 |
+| S700_3505   | The Titanic                                 |           75 |     6695.64 |
+| S700_4002   | American Airlines: MD-11S                   |           74 |     5031.26 |
+| S12_1108    | 2001 Ferrari Enzo                           |           74 |    14880.41 |
+| S10_4698    | 2003 Harley-Davidson Eagle Drag Bike        |           73 |    11958.52 |
+| S24_2000    | 1960 BSA Gold Star DBD34                    |           72 |     5238.80 |
+| S700_2610   | The USS Constitution Ship                   |           69 |     4436.68 |
+| S12_3891    | 1969 Ford Falcon                            |           68 |    10862.30 |
+| S18_3856    | 1941 Chevrolet Special Deluxe Cabriolet     |           68 |     6435.58 |
+| S10_2016    | 1996 Moto Guzzi 1100i                       |           68 |     7577.80 |
+| S24_1785    | 1928 British Royal Navy Airplane            |           67 |     6629.83 |
+| S700_3962   | The Queen Mary                              |           67 |     6206.92 |
+| S700_1938   | The Mayflower                               |           67 |     5374.99 |
+| S700_1138   | The Schooner Bluenose                       |           66 |     3647.50 |
+| S18_4522    | 1904 Buick Runabout                         |           64 |     4790.47 |
+| S18_2581    | P-51-D Mustang                              |           63 |     5158.31 |
+| S32_4289    | 1928 Ford Phaeton Deluxe                    |           62 |     4151.46 |
+| S18_3029    | 1999 Yamaha Speed Boat                      |           62 |     4886.90 |
+| S24_1578    | 1997 BMW R 1100 S                           |           60 |     6288.75 |
+| S700_2047   | HMS Bounty                                  |           59 |     4705.37 |
+| S18_3259    | Collectable Wooden Train                    |           59 |     5049.02 |
+| S700_2466   | America West Airlines B757-200              |           58 |     5352.96 |
+| S700_2834   | ATA: B757-300                               |           56 |     6207.76 |
+| S24_4278    | 1900s Vintage Tri-Plane                     |           55 |     3926.17 |
+| S24_3420    | 1937 Horch 930V Limousine                   |           51 |     2994.99 |
+| S18_4668    | 1939 Cadillac Limousine                     |           50 |     2163.50 |
+| S18_1097    | 1940 Ford Pickup Truck                      |           49 |     4973.50 |
+| S18_1367    | 1936 Mercedes-Benz 500K Special Roadster    |           48 |     2328.96 |
+| S24_3969    | 1936 Mercedes Benz 500k Roadster            |           48 |     1693.92 |
+| S18_3140    | 1903 Ford Model A                           |           48 |     6165.80 |
+| S18_3685    | 1948 Porsche Type 356 Roadster              |           47 |     5909.78 |
+| S24_1444    | 1970 Dodge Coronet                          |           47 |     2662.08 |
+| S12_4473    | 1957 Chevy Pickup                           |           46 |     5123.94 |
+| S18_2238    | 1998 Chrysler Plymouth Prowler              |           46 |     6477.26 |
+| S24_2887    | 1952 Citroen-15CV                           |           46 |     5186.04 |
+| S12_3380    | 1968 Dodge Charger                          |           45 |     4333.50 |
+| S18_2432    | 1926 Ford Fire Engine                       |           45 |     2406.60 |
+| S18_4721    | 1957 Corvette Convertible                   |           44 |     6154.28 |
+| S24_4048    | 1992 Porsche Cayenne Turbo Silver           |           44 |     4683.80 |
+| S12_3148    | 1969 Corvair Monza                          |           43 |     6366.58 |
+| S18_3136    | 18th Century Vintage Horse Carriage         |           43 |     4052.75 |
+| S18_3782    | 1957 Vespa GS150                            |           43 |     2272.12 |
+| S24_2766    | 1949 Jaguar XK 120                          |           43 |     3555.67 |
+| S18_4933    | 1957 Ford Thunderbird                       |           42 |     2604.00 |
+| S700_2824   | 1982 Camaro Z28                             |           42 |     3483.48 |
+| S32_1374    | 1997 BMW F650 ST                            |           42 |     3865.80 |
+| S18_1749    | 1917 Grand Touring Sedan                    |           42 |     6426.00 |
+| S18_4600    | 1940s Ford truck                            |           41 |     4318.94 |
+| S24_3856    | 1956 Porsche 356A Coupe                     |           40 |     5280.00 |
+| S18_3320    | 1917 Maxwell Touring Car                    |           39 |     3559.53 |
+| S24_2022    | 1938 Cadillac V-16 Presidential Limousine   |           39 |     1590.03 |
+| S18_2319    | 1964 Mercedes Tour Bus                      |           39 |     4164.42 |
+| S12_3990    | 1970 Plymouth Hemi Cuda                     |           39 |     2956.59 |
+| S18_1889    | 1948 Porsche 356-A Roadster                 |           38 |     2574.88 |
+| S18_1984    | 1995 Honda Civic                            |           38 |     5243.24 |
+| S24_3432    | 2002 Chevy Corvette                         |           37 |     3565.69 |
+| S18_1589    | 1965 Aston Martin DB5                       |           37 |     4374.14 |
+| S24_1046    | 1970 Chevy Chevelle SS 454                  |           36 |     2592.72 |
+| S12_4675    | 1969 Dodge Charger                          |           36 |     3855.60 |
+| S24_2360    | 1982 Ducati 900 Monster                     |           35 |     2254.35 |
+| S50_4713    | 2002 Yamaha YZR M1                          |           34 |     2544.90 |
+| S18_2325    | 1932 Model A Ford J-Coupe                   |           33 |     3817.77 |
+| S18_1342    | 1937 Lincoln Berline                        |           33 |     2881.89 |
+| S12_1099    | 1968 Ford Mustang                           |           33 |     5457.54 |
+| S18_2248    | 1911 Ford Town Car                          |           32 |     1646.72 |
+| S32_1268    | 1980’s GM Manhattan Express                 |           32 |     2835.52 |
+| S32_4485    | 1974 Ducati 350 Mk3 Desmo                   |           31 |     2720.56 |
+| S10_4962    | 1962 LanciaA Delta 16V                      |           31 |     3984.43 |
+| S18_2795    | 1928 Mercedes-Benz SSK                      |           31 |     5074.39 |
+| S24_4620    | 1961 Chevrolet Impala                       |           31 |     2080.10 |
+| S10_1678    | 1969 Harley Davidson Ultimate Chopper       |           30 |     2440.50 |
+| S24_3371    | 1971 Alpine Renault 1600s                   |           30 |     1800.30 |
+| S24_2972    | 1982 Lamborghini Diablo                     |           29 |      930.90 |
+| S24_1628    | 1966 Shelby Cobra 427 S/C                   |           29 |     1254.83 |
+| S18_3482    | 1976 Ford Gran Torino                       |           29 |     3836.41 |
+| S10_1949    | 1952 Alpine Renault 1300                    |           29 |     5717.64 |
+| S18_2957    | 1934 Ford V8 Coupe                          |           28 |     1486.52 |
+| S18_4409    | 1932 Alfa Romeo 8C2300 Spider Sport         |           28 |     2293.48 |
+| S32_2509    | 1954 Greyhound Scenicruiser                 |           28 |     1227.24 |
+| S50_1392    | Diamond T620 Semi-Skirted Tanker            |           27 |     2718.90 |
+| S32_2206    | 1982 Ducati 996 R                           |           27 |      977.67 |
+| S24_3191    | 1969 Chevrolet Camaro Z28                   |           27 |     2172.69 |
+| S32_3207    | 1950's Chicago Surface Lines Streetcar      |           27 |     1627.56 |
+| S24_4258    | 1936 Chrysler Airflow                       |           26 |     2228.20 |
+| S18_3278    | 1969 Dodge Super Bee                        |           26 |     1902.42 |
+| S18_1129    | 1993 Mazda RX-7                             |           26 |     3054.48 |
+| S18_2870    | 1999 Indy 500 Monte Carlo SS                |           26 |     3294.72 |
+| S24_2840    | 1958 Chevy Corvette Limited Edition         |           24 |      687.36 |
+| S18_2949    | 1913 Ford Model T Speedster                 |           23 |     1957.30 |
+| S32_3522    | 1996 Peterbilt 379 Stake Bed with Outrigger |           23 |     1352.86 |
+| S18_4027    | 1970 Triumph Spitfire                       |           22 |     2685.76 |
+| S12_2823    | 2002 Suzuki XREO                            |           21 |     2562.00 |
+| S50_1514    | 1962 City of Detroit Streetcar              |           21 |     1168.65 |
+| S24_2300    | 1962 Volkswagen Microbus                    |           21 |     2146.83 |
+| S12_1666    | 1958 Setra Bus                              |           21 |     2554.44 |
+| S24_1937    | 1939 Chevrolet Deluxe Coupe                 |           20 |      577.60 |
++-------------+---------------------------------------------+--------------+-------------+
+109 rows in set (0.013 sec)
+
+
+3. 業務訂單取消的比例
+=>目標輸入起始時間與結束時間，顯示各業務此期間所有訂單數量、取消單數量、取消單數量佔所有訂單的比例，並且依取消單數量佔所有訂單的比例排序
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `ex3`(IN `start_date` DATE, IN `end_date` DATE)
+    NO SQL
+BEGIN
+	SELECT b.employeeNumber ,concat(b.firstName,"-",b.lastName) as name , count(d.orderNumber) as count_all, count(if(d.status='cancelled',1,NULL)) as count_cancelled,  count(if(d.status='cancelled',1,NULL))/count(d.orderNumber) as cancel_percent from employees as b, customers as c, orders as d where b.employeeNumber=c.salesRepEmployeeNumber and c.customerNumber=d.customerNumber and d.orderDate between start_date and end_date group by 1,2 order by 5 desc;
+end$$
+DELIMITER ;
+
+call ex3('2003-02-01','2003-12-01');
++----------------+------------------+-----------+-----------------+----------------+
+| employeeNumber | name             | count_all | count_cancelled | cancel_percent |
++----------------+------------------+-----------+-----------------+----------------+
+|           1612 | Peter-Marsh      |         3 |               1 |         0.3333 |
+|           1504 | Barry-Jones      |         8 |               1 |         0.1250 |
+|           1323 | George-Vanauf    |         6 |               0 |         0.0000 |
+|           1702 | Martin-Gerard    |         5 |               0 |         0.0000 |
+|           1370 | Gerard-Hernandez |         9 |               0 |         0.0000 |
+|           1165 | Leslie-Jennings  |        11 |               0 |         0.0000 |
+|           1501 | Larry-Bott       |         8 |               0 |         0.0000 |
+|           1188 | Julie-Firrelli   |         4 |               0 |         0.0000 |
+|           1611 | Andy-Fixter      |         8 |               0 |         0.0000 |
+|           1286 | Foon Yue-Tseng   |         5 |               0 |         0.0000 |
+|           1621 | Mami-Nishi       |         7 |               0 |         0.0000 |
+|           1337 | Loui-Bondur      |         6 |               0 |         0.0000 |
+|           1401 | Pamela-Castillo  |        11 |               0 |         0.0000 |
+|           1166 | Leslie-Thompson  |         6 |               0 |         0.0000 |
+|           1216 | Steve-Patterson  |         3 |               0 |         0.0000 |
++----------------+------------------+-----------+-----------------+----------------+
+
+
+
+
+4. 低於商品建議售價(product.MSRP)*95%的訂單及其實際售價
+
+select o.orderNumber, o.productCode ,p.productName, p.MSRP, o.priceEach from orderdetails as o, products as p where o.productCode=p.productCode HAVING o.priceEach<0.95*p.MSRP;
+
+
